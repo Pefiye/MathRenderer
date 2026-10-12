@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Formula Renderer</title>
+<style>
+:root{--bg:#f7f6f9;--panel:#fff;--text:#25222b;--muted:#78737f;--border:#e3e0e8;--accent:#7048e8;--chip:#efedf3;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141217;--panel:#1b1920;--text:#e8e6ec;--muted:#98939f;--border:#2c2933;--accent:#a78bfa;--chip:#25222c}}
+:root[data-theme="dark"]{--bg:#141217;--panel:#1b1920;--text:#e8e6ec;--muted:#98939f;--border:#2c2933;--accent:#a78bfa;--chip:#25222c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);min-height:100vh;color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:16px 20px 0;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
+h1{font-size:1.1rem;margin:0;font-weight:600;letter-spacing:.01em}
+.hint{color:var(--muted);font-size:.85rem}
+main{display:grid;grid-template-columns:1fr;gap:16px;padding:16px 20px 24px;max-width:1500px;margin:0 auto}
+.pane{background:var(--panel);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;min-width:0}
+.pane h2{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0;padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+textarea{width:100%;min-height:30vh;border:0;background:transparent;color:var(--text);padding:14px;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;resize:vertical;outline:none}
+#out{padding:14px 18px;min-height:30vh;overflow-x:auto}
+#out span.m{max-width:100%}#out span.m[style*="block"]{overflow-x:auto;margin:.5em 0}
+#out p{margin:.6em 0}
+#out ul,#out ol{padding-left:1.4em}
+#out code{background:var(--bg);padding:1px 5px;border-radius:4px}
+label{font-size:.8rem;color:var(--muted);text-transform:none;letter-spacing:0;display:flex;gap:6px;align-items:center;cursor:pointer}
+button{font:inherit;font-size:.8rem;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:6px;padding:3px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+.pane{border-radius:12px}
+.pane:focus-within{border-color:var(--accent)}
+#out h1,#out h2,#out h3{color:var(--accent)}
+#out code{background:var(--chip)}
+#out hr{border:0;border-top:1px solid var(--border)}
+#out blockquote{margin:.8em 0;padding:.1em 1em;border-left:3px solid var(--accent);color:var(--muted)}
+#out a{color:var(--accent)}
+::selection{background:var(--accent);color:#fff}
+input[type=checkbox]{accent-color:var(--accent)}
+
+#gifBtn{margin-left:auto}
+.hdr-right{display:flex;gap:10px;align-items:center}
+#gw{position:fixed;left:40px;top:90px;width:240px;height:200px;z-index:1000;display:none;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.28);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+#gw.open{display:flex}
+#gw .bar{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel);cursor:move}
+#gw .bar .sp{flex:1;font-size:.72rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#gw .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;cursor:move}
+#gw img{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;pointer-events:none;-webkit-user-drag:none}
+#gw .empty{color:var(--muted);font-size:.8rem;text-align:center;padding:10px}
+#gw .rs{position:absolute;right:0;bottom:0;width:22px;height:22px;cursor:nwse-resize;touch-action:none;
+  background:linear-gradient(135deg,transparent 55%,var(--muted) 55%,var(--muted) 62%,transparent 62%,transparent 72%,var(--muted) 72%,var(--muted) 79%,transparent 79%);opacity:.7}
+#gw .peek{position:absolute;top:4px;right:4px;opacity:0;transition:opacity .15s;display:none;padding:1px 7px;line-height:1.4}
+#gw.bare{background:transparent;border-color:transparent;box-shadow:none}
+#gw.bare .bar{display:none}
+#gw.bare .peek{display:block}
+#gw.bare:hover .peek{opacity:.9}
+#gw.bare .rs{opacity:0}
+#gw.bare:hover .rs{opacity:.6}
+#gw.bare:hover{border-color:var(--border)}
+</style>
+<script>
+window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']],processEscapes:true},svg:{fontCache:'none'},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js"></script>
+</head>
+<body>
+<header>
+  <h1>Formula Renderer</h1>
+  <span class="hdr-right"><button id="gifBtn" type="button" title="Open a floating GIF window">GIF window</button></span>
+  <span class="hint">Paste text with LaTeX ($…$, $$…$$, \[…\], \(…\)) and Markdown on the left.</span>
+</header>
+<main>
+  <section class="pane">
+    <h2><span>Paste here</span><button id="clear" type="button">Clear</button></h2>
+    <textarea id="in" placeholder="Paste NotebookLM output here…" spellcheck="false"></textarea>
+  </section>
+  <section class="pane">
+    <h2><span>Rendered</span><label><input type="checkbox" id="fix" checked> Fix broken line breaks in aligned blocks</label></h2>
+    <div id="out"></div>
+  </section>
+</main>
+
+<div id="gw" role="dialog" aria-label="GIF window">
+  <div class="bar" id="gwBar">
+    <span class="sp" id="gwName">No GIF selected</span>
+    <button type="button" id="gwPick" title="Choose a GIF">Choose GIF</button>
+    <button type="button" id="gwHide" title="Hide buttons (double-click the window to bring them back)">Hide</button>
+    <button type="button" id="gwClose" title="Close">&times;</button>
+  </div>
+  <div class="stage" id="gwStage"><div class="empty" id="gwEmpty">Click “Choose GIF”</div><img id="gwImg" alt="" hidden></div>
+  <button type="button" class="peek" id="gwShow" title="Show buttons">&middot;&middot;&middot;</button>
+  <div class="rs" id="gwRs"></div>
+  <input type="file" id="gwFile" accept="image/gif,image/*" hidden>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let timer,token=0;
+
+function fixMath(m){
+  // NotebookLM often collapses \\ to a single \ inside aligned/array blocks
+  if(!$('fix').checked||!/\\begin\{(aligned|align\*?|array|cases|gathered|split)\}/.test(m))return m;
+  return m.replace(/(^|[^\\])\\(?=\s)/g,'$1\\\\');
+}
+
+function render(){
+  const my=++token;
+  let src=$('in').value;
+  const store=[];
+  const keep=(m,display)=>{store.push({m:fixMath(m.trim()),display});return 'MATHPH'+(store.length-1)+'END';};
+  src=src.replace(/\$\$([\s\S]+?)\$\$/g,(_,m)=>keep(m,true));
+  src=src.replace(/\\{1,2}\[([\s\S]+?)\\{1,2}\]/g,(_,m)=>keep(m,true));
+  src=src.replace(/\\{1,2}\(([\s\S]+?)\\{1,2}\)/g,(_,m)=>keep(m,false));
+  src=src.replace(/\$([^$\n]+?)\$/g,(_,m)=>(m.trim()!==m||!m)?'$'+m+'$':keep(m,false));
+
+  let html=marked.parse(src,{breaks:true,mangle:false,headerIds:false});
+  html=DOMPurify.sanitize(html);
+  html=html.replace(/MATHPH(\d+)END/g,(_,i)=>'<span class="m" data-i="'+i+'"></span>');
+  $('out').innerHTML=html;
+
+  if(!(window.MathJax&&MathJax.typesetPromise))return;
+  $('out').querySelectorAll('span.m').forEach(el=>{
+    const {m,display}=store[+el.dataset.i];
+    el.textContent=display?'\\['+m+'\\]':'\\('+m+'\\)';
+  });
+  MathJax.typesetClear([$('out')]);
+  MathJax.typesetPromise([$('out')]).catch(e=>{
+    $('out').insertAdjacentText('afterbegin','MathJax error: '+e);
+  });
+}
+const schedule=()=>{clearTimeout(timer);timer=setTimeout(render,200);};
+$('in').addEventListener('input',schedule);
+$('fix').addEventListener('change',render);
+$('clear').addEventListener('click',()=>{$('in').value='';render();$('in').focus();});
+const wait=setInterval(()=>{if(window.MathJax&&MathJax.startup&&MathJax.startup.promise){clearInterval(wait);MathJax.startup.promise.then(render);}},100);
+
+// ---- Floating GIF window ----
+(function(){
+  const gw=$('gw'),img=$('gwImg'),file=$('gwFile');
+  const clamp=()=>{
+    const r=gw.getBoundingClientRect();
+    gw.style.left=Math.min(Math.max(-r.width+40,r.left),innerWidth-40)+'px';
+    gw.style.top=Math.min(Math.max(0,r.top),innerHeight-30)+'px';
+  };
+  $('gifBtn').addEventListener('click',()=>{
+    gw.classList.add('open');
+    if(!img.src||img.hidden)file.click();
+  });
+  $('gwClose').addEventListener('click',()=>gw.classList.remove('open'));
+  $('gwPick').addEventListener('click',()=>file.click());
+  $('gwHide').addEventListener('click',()=>gw.classList.add('bare'));
+  $('gwShow').addEventListener('click',()=>gw.classList.remove('bare'));
+  gw.addEventListener('dblclick',e=>{if(e.target.closest('button'))return;gw.classList.toggle('bare');});
+
+  file.addEventListener('change',()=>{
+    const f=file.files&&file.files[0];if(!f)return;
+    const fr=new FileReader();
+    fr.onload=()=>{
+      img.onload=()=>{
+        // size window to the gif's aspect ratio
+        const bar=gw.classList.contains('bare')?0:$('gwBar').offsetHeight;
+        const w=Math.max(120,gw.clientWidth||240);
+        const h=Math.round(w*img.naturalHeight/img.naturalWidth)+bar;
+        gw.style.width=w+'px';gw.style.height=Math.min(h,innerHeight-40)+'px';
+      };
+      img.src=fr.result;img.hidden=false;$('gwEmpty').hidden=true;$('gwName').textContent=f.name;
+    };
+    fr.readAsDataURL(f);
+    file.value='';
+  });
+
+  // drag (bar or gif area)
+  let drag=null;
+  const startDrag=e=>{
+    if(e.target.closest('button'))return;
+    const r=gw.getBoundingClientRect();
+    drag={dx:e.clientX-r.left,dy:e.clientY-r.top,id:e.pointerId,el:e.currentTarget};
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const moveDrag=e=>{
+    if(!drag||e.pointerId!==drag.id)return;
+    gw.style.left=(e.clientX-drag.dx)+'px';gw.style.top=(e.clientY-drag.dy)+'px';
+  };
+  const endDrag=()=>{if(drag){drag=null;clamp();}};
+  ['gwBar','gwStage'].forEach(id=>{
+    const el=$(id);
+    el.addEventListener('pointerdown',startDrag);
+    el.addEventListener('pointermove',moveDrag);
+    el.addEventListener('pointerup',endDrag);
+    el.addEventListener('pointercancel',endDrag);
+  });
+
+  // resize (bottom-right handle)
+  let rs=null;const rh=$('gwRs');
+  rh.addEventListener('pointerdown',e=>{
+    rs={x:e.clientX,y:e.clientY,w:gw.offsetWidth,h:gw.offsetHeight,id:e.pointerId};
+    rh.setPointerCapture(e.pointerId);e.stopPropagation();
+  });
+  rh.addEventListener('pointermove',e=>{
+    if(!rs||e.pointerId!==rs.id)return;
+    gw.style.width=Math.max(100,rs.w+e.clientX-rs.x)+'px';
+    gw.style.height=Math.max(80,rs.h+e.clientY-rs.y)+'px';
+  });
+  const endRs=()=>{rs=null;};
+  rh.addEventListener('pointerup',endRs);rh.addEventListener('pointercancel',endRs);
+  addEventListener('resize',()=>{if(gw.classList.contains('open'))clamp();});
+})();
+</script>
+</body>
+</html>
